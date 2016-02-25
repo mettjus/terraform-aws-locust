@@ -1,0 +1,18 @@
+#cloud-config
+
+write-files:
+  - path: /opt/bin/wufae
+    permissions: '0700'
+    content: |
+      #!/bin/bash
+      # [w]ait [u]ntil [f]ile [a]ctually [e]xists
+      [ -n "$1" ] && \
+        while [ ! -f $1 ]
+        do
+          sleep 2
+        done
+      exit $?
+
+coreos:
+  update:
+    reboot-strategy: "off"

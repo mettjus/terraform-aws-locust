@@ -90,16 +90,16 @@ resource "aws_security_group_rule" "allow_locust" {
     security_group_id = "${aws_security_group.locust.id}"
 }
 
-resource "template_file" "master" {
-	template = "${file("master.yaml")}"
-	vars = {
-		target_host = "${var.target_host}"
-		locust_file = "${base64encode(file("${var.test_file}"))}"
-	}
+resource "template_file" "master-unit" {
+    template = "${file("templates/master-locust.service")}"
+    vars = {
+        target_host = "${var.target_host}"
+        locust_file = "${base64encode(file("${var.test_file}"))}"
+    }
 }
 
-resource "template_file" "slave" {
-	template = "${file("slave.yaml")}"
+resource "template_file" "slave-unit" {
+	template = "${file("templates/slave-locust.service")}"
 	vars = {
 		target_host = "${var.target_host}"
 		locust_file = "${base64encode(file("${var.test_file}"))}"
@@ -109,7 +109,7 @@ resource "template_file" "slave" {
 
 resource "aws_instance" "master" {
     ami = "${var.ami}"
-    instance_type = "${var.instance_type}"
+    instance_type = "${var.master_instance_type}"
     security_groups = [ "${aws_security_group.locust.id}" ]
     subnet_id = "${aws_subnet.locust.id}"
     associate_public_ip_address = true
@@ -126,12 +126,12 @@ resource "aws_instance" "master" {
         Role = "master"
     }
 
-    user_data = "${template_file.master.rendered}"
+    user_data = "${file("templates/coreos.yaml")}"
 }
 
 resource "aws_instance" "slave" {
     ami = "${var.ami}"
-    instance_type = "${var.instance_type}"
+    instance_type = "${var.slave_instance_type}"
     count = "${var.num_slaves}"
     security_groups = [ "${aws_security_group.locust.id}" ]
     subnet_id = "${aws_subnet.locust.id}"
@@ -149,5 +149,48 @@ resource "aws_instance" "slave" {
         Role = "slave"
     }
 
-    user_data = "${template_file.slave.rendered}"
+    user_data = "${file("templates/coreos.yaml")}"
+}
+
+resource "null_resource" "master" {
+    triggers {
+        id = "${element(aws_instance.master.*.id,0)}"
+    }
+    connection {
+        host = "${element(aws_instance.master.*.public_ip,0)}"
+        user = "core"
+        agent = true
+    }
+    provisioner "remote-exec" {
+        inline = [
+            "cat <<EOF > /tmp/locustfile.py\n${file("${var.test_file}")}\nEOF",
+            "sudo mv /tmp/locustfile.py /etc/locustfile.py",
+            "cat <<EOF > /tmp/locust.service\n${template_file.master-unit.rendered}\nEOF",
+            "sudo mv /tmp/locust.service /etc/systemd/system/locust.service",
+            "sudo systemctl daemon-reload",
+            "sudo systemctl restart locust"
+        ]
+    }
+}
+
+resource "null_resource" "slave" {
+    triggers {
+        id = "${join(",",aws_instance.slave.*.id)}"
+    }
+    count = "${var.num_slaves}"
+    connection {
+        host = "${element(aws_instance.slave.*.public_ip,count.index)}"
+        user = "core"
+        agent = true
+    }
+    provisioner "remote-exec" {
+        inline = [
+            "cat <<EOF > /tmp/locustfile.py\n${file("${var.test_file}")}\nEOF",
+            "sudo mv /tmp/locustfile.py /etc/locustfile.py",
+            "cat <<EOF > /tmp/locust.service\n${template_file.slave-unit.rendered}\nEOF",
+            "sudo mv /tmp/locust.service /etc/systemd/system/locust.service",
+            "sudo systemctl daemon-reload",
+            "sudo systemctl restart locust"
+        ]
+    }
 }

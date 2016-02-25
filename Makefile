@@ -10,3 +10,6 @@ destroy:
 
 apply: public_ip.txt
 	terraform apply
+
+prepare-update:
+	bash -c scripts/prepare-update.sh

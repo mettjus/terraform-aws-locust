@@ -27,3 +27,9 @@ Create a file named `terraform.tfvars` and specify custom variables. Example:
     ...
 
 Refer to `variables.tf` to know what variables are available for overwrite.
+
+## Update test configuration
+
+- modify target host via tf variable in terraform.tfvars
+- modify test.py
+- update by running `make prepare-update && make apply` (taints necessary tf resources, re-uploads test file)

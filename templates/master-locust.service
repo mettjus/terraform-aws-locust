@@ -1,0 +1,13 @@
+[Unit]
+Requires=docker.service
+After=docker.service
+[Service]
+ExecStartPre=/opt/bin/wufae /etc/locustfile.py
+ExecStart=/usr/bin/docker run -p 8089:8089 -p 5557:5557 -p 5558:5558 \
+  -v /etc/locustfile.py:/test/locustfile.py \
+  hakobera/locust \
+  locust -f /test/locustfile.py --master --host=${target_host}
+Restart=always
+RestartSec=10
+[Install]
+WantedBy=multi-user.target

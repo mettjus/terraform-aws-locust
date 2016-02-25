@@ -10,8 +10,12 @@ variable "region" {
     default = "eu-central-1"
 }
 
-variable "instance_type" {
+variable "master_instance_type" {
     default = "t2.micro"
+}
+
+variable "slave_instance_type" {
+    default = "t2.small"
 }
 
 variable "ami" {
